@@ -4,8 +4,8 @@ This section will be a guide for contributors who wish to debug the Azure Key Va
 > Ensure you have an Azure Subscription set up.
 
 ### Table of Contents
-- [Azure Key Vault Creation](#azure-key-vault-creation)
-- [Service Principal Generation](#service-principal-generation)
+- [Create an Azure Key Vault](#create-an-azure-key-vault)
+- [Create a Service Principal](#create-a-service-principal)
 - [Set Up Debug Directory](#set-up-debug-directory)
   - [launch.json](#launch.json)
   - [parameters.yaml](#parameters.yaml)
