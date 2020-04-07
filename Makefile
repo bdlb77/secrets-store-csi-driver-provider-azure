@@ -72,6 +72,7 @@ build-windows:
 .PHONY: build-container-windows
 build-container-windows: build-windows
 	docker build --no-cache -t $(DOCKER_IMAGE):$(IMAGE_VERSION) --build-arg IMAGE_VERSION="$(IMAGE_VERSION)" -f windows.Dockerfile .
+
 .PHONY: setup-debug-launchjson
 setup-debug-launchjson:
 	chmod +x debug/build-args.sh && ./debug/build-args.sh
