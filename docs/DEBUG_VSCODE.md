@@ -1,6 +1,7 @@
 # Debug with VS Code Guidance
 This section will be a guide for contributors who wish to debug the Azure Key Vault Providers.
-> Ensure [Prerequisites](/docs/contributing.md#prerequisites) have been met.
+
+> Ensure you have an Azure Subscription set up.
 
 ### Table of Contents
 - [Azure Key Vault Creation](#azure-key-vault-creation)

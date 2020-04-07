@@ -61,6 +61,7 @@ e2e-bootstrap:
 	DOCKER_IMAGE="e2e/secrets-store-csi-driver-provider-azure" IMAGE_VERSION=e2e-$$(git rev-parse --short HEAD) make image
 	# Load image into kind cluster
 	kind load docker-image --name kind e2e/secrets-store-csi-driver-provider-azure:e2e-$$(git rev-parse --short HEAD)
+
 .PHONY: e2e-azure
 e2e-azure:
 	bats -t test/bats/azure.bats
