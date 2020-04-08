@@ -62,6 +62,18 @@ e2e-bootstrap:
 	# Load image into kind cluster
 	kind load docker-image --name kind e2e/secrets-store-csi-driver-provider-azure:e2e-$$(git rev-parse --short HEAD)
 
+.PONY: remote-e2e-bootstrap
+remote-e2e-bootstrap:
+	# Create kind cluster
+	kind create cluster --config test/bats/remote-kind-config.yaml --image kindest/node:v${KUBERNETES_VERSION}
+	# Build image
+	DOCKER_IMAGE="e2e/secrets-store-csi-driver-provider-azure" IMAGE_VERSION=e2e-$$(git rev-parse --short HEAD) make image
+	# Load image into kind cluster
+	kind load docker-image --name kind e2e/secrets-store-csi-driver-provider-azure:e2e-$$(git rev-parse --short HEAD)
+	# find docker host IP. config kubectl cluster
+	export KUBECONFIG=$(shell kind get kubeconfig-path) \
+		&& nslookup host.docker.internal 2>&1 | fgrep Address | cut -d ':' -f2 | sed -e 's/^[[:space:]]*//' | xargs -I {} echo "{} kind-control-plane" >> /etc/hosts \
+		&& kubectl config set-cluster kind --server=https://kind-control-plane:6443
 .PHONY: e2e-azure
 e2e-azure:
 	bats -t test/bats/azure.bats
