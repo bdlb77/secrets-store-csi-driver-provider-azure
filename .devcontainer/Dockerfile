@@ -9,6 +9,12 @@ FROM golang:1.14
 ENV DEBIAN_FRONTEND=noninteractive
 ENV JQ_VERSION='1.5'
 
+# Helm Version
+ARG HELM_VERSION=3.0.2
+# Kind Version
+ARG KIND_VERSION=0.5.1
+# Kubernetes Version for Kubectl
+ARG KUBERNETES_VERSION=1.15.3
 
 # This Dockerfile adds a non-root user with sudo access. Use the "remoteUser"
 # property in devcontainer.json to use it. On Linux, the container user's GID/UIDs
@@ -73,6 +79,36 @@ RUN apt-get update \
   && chmod -R a+w /go/pkg
 
 
+# Install Docker CE CLI
+RUN apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common lsb-release \
+    && curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | (OUT=$(apt-key add - 2>&1) || echo $OUT) \
+    && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli
+
+# Install Helm (currently v3.0.2)
+RUN mkdir -p /tmp/downloads/helm \
+    && curl -sL -o /tmp/downloads/helm.tar.gz https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz \
+    && tar -C /tmp/downloads/helm -zxvf /tmp/downloads/helm.tar.gz \
+    && mv /tmp/downloads/helm/linux-amd64/helm /usr/local/bin/helm
+
+# Install Kubectl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v${KUBERNETES_VERSION}/bin/linux/amd64/kubectl \
+  && chmod +x ./kubectl \
+  && mv kubectl /usr/local/bin/
+
+# Install Kind
+	RUN curl -LO https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-linux-amd64 \
+    && chmod +x ./kind-linux-amd64 \
+    && mv ./kind-linux-amd64 /usr/local/bin/kind
+
+# Install Azure CLI
+RUN apt-get install -y apt-transport-https curl gnupg2 lsb-release \
+  && echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/azure-cli.list \
+  && curl -sL https://packages.microsoft.com/keys/microsoft.asc | apt-key add - 2>/dev/null \
+  && apt-get update \
+  && apt-get install -y azure-cli
+
 # Install jq utility
 RUN wget --no-check-certificate https://raw.githubusercontent.com/stedolan/jq/master/sig/jq-release.key -O /tmp/jq-release.key && \
   wget --no-check-certificate https://raw.githubusercontent.com/stedolan/jq/master/sig/v${JQ_VERSION}/jq-linux64.asc -O /tmp/jq-linux64.asc && \
@@ -92,19 +128,6 @@ RUN apt-key adv --no-tty --keyserver keyserver.ubuntu.com --recv-keys CC86BB64 \
   && apt update \
   && apt install yq -y
 
-# Install Docker CE CLI
-RUN apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common lsb-release \
-  && curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | (OUT=$(apt-key add - 2>&1) || echo $OUT) \
-  && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
-  && apt-get update \
-  && apt-get install -y docker-ce-cli
-
-# Install Azure CLI
-RUN apt-get install -y apt-transport-https curl gnupg2 lsb-release \
-  && echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/azure-cli.list \
-  && curl -sL https://packages.microsoft.com/keys/microsoft.asc | apt-key add - 2>/dev/null \
-  && apt-get update \
-  && apt-get install -y azure-cli
 # clean up
 RUN apt-get autoremove -y \
   && apt-get clean -y \
