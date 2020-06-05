@@ -26,7 +26,7 @@ ARG USER_GID=$USER_UID
 # Configure apt, install packages and tools
 RUN apt-get update \
   && apt-get install -y apt-transport-https \
-  && apt-get -y install --no-install-recommends apt-utils dnsutils dialog 2>&1 \
+  && apt-get -y install --no-install-recommends apt-utils gettext-base dnsutils dialog 2>&1 \
   #
   # Verify git, process tools, lsb-release (common in install instructions for CLIs) installed
   && apt-get -y install git openssh-client vim less iproute2 procps lsb-release \
@@ -131,14 +131,6 @@ RUN git clone https://github.com/sstephenson/bats.git /tmp/bats \
   && chmod +x /tmp/bats/install.sh \
   && /tmp/bats/install.sh /usr/ \
   && rm -rf /tmp/bats
-
-# swap out localhost for host.docker.internal
-RUN echo '\n\
-if [ "$SYNC_LOCALHOST_KUBECONFIG" == "true" ] && [ -d "/usr/local/share/kube-localhost" ]; then\n\
-    mkdir -p ${HOME}${USERPROFILE}/.kube\n\
-    cp -r /usr/local/share/kube-localhost/* ${HOME}${USERPROFILE}/.kube\n\
-    sed -i -e "s/localhost/host.docker.internal/g" ${HOME}${USERPROFILE}/.kube/config\n\
-fi' >> /root/.bashrc
 
 # clean up
 RUN apt-get autoremove -y \

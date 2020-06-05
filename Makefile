@@ -110,10 +110,8 @@ install-helm:
 
 .PHONY: e2e-local-bootstrap
 e2e-local-bootstrap:
-	kind create cluster --name provider-azure --config kind-config.yaml --image kindest/node:v${KIND_K8S_VERSION}
+	kind create cluster --image kindest/node:v${KIND_K8S_VERSION}
 	make image
-	kind load docker-image --name provider-azure $(DOCKER_IMAGE):$(IMAGE_VERSION)
-	nslookup host.docker.internal 2>&1 | fgrep Address | cut -d ':' -f2 | sed -e 's/^[[:space:]]*//' | xargs -I {} echo "{} provider-azure-control-plane" >> /etc/hosts
-	kubectl config set-cluster provider-azure --server=https://provider-azure-control-plane:6443
+	kind load --name kind docker-image $(DOCKER_IMAGE):$(IMAGE_VERSION)
 setup-debug-launchjson:
 	chmod +x debug/build-args.sh && ./debug/build-args.sh

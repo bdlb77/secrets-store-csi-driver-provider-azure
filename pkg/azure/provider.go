@@ -179,8 +179,7 @@ func GetCredential(secrets map[string]string) (string, string, error) {
 	return clientID, clientSecret, nil
 }
 
-<<<<<<< HEAD:pkg/azure/provider.go
-func (p *Provider) getVaultURL(ctx context.Context, cloudName string) (vaultURL *string, err error) {
+func (p *Provider) getVaultURL(ctx context.Context) (vaultURL *string, err error) {
 	log.Debugf("vaultName: %s", p.KeyvaultName)
 
 	// Key Vault name must be a 3-24 character string
@@ -193,32 +192,7 @@ func (p *Provider) getVaultURL(ctx context.Context, cloudName string) (vaultURL 
 		return nil, errors.Errorf("Invalid vault name: %q, must match [-a-zA-Z0-9]{3,24}", p.KeyvaultName)
 	}
 
-	vaultDnsSuffix, err := GetVaultDNSSuffix(cloudName)
-=======
-func (p *Provider) getVaultURL(ctx context.Context) (vaultURL *string, err error) {
-	log.Debugf("subscriptionID: %s", p.SubscriptionID)
-	log.Debugf("vaultName: %s", p.KeyvaultName)
-	log.Debugf("cloudName: %s", p.AzureCloudEnvironment.Name)
-	log.Debugf("resourceGroup: %s", p.ResourceGroup)
-
-	vaultsClient := kvmgmt.NewVaultsClient(p.SubscriptionID)
-	token, tokenErr := p.GetManagementToken(AuthGrantType())
-	if tokenErr != nil {
-		return nil, errors.Wrapf(tokenErr, "failed to get management token")
-	}
-	vaultsClient.Authorizer = token
-	vault, err := vaultsClient.Get(ctx, p.ResourceGroup, p.KeyvaultName)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get vault %s", p.KeyvaultName)
-	}
-	return vault.Properties.VaultURI, nil
-}
-
-// GetManagementToken retrieves a new service principal token
-func (p *Provider) GetManagementToken(grantType OAuthGrantType) (authorizer autorest.Authorizer, err error) {
-	rmEndPoint := p.AzureCloudEnvironment.ResourceManagerEndpoint
-	servicePrincipalToken, err := p.GetServicePrincipalToken(rmEndPoint)
->>>>>>> 077a212... Expose CloudName for Sovereign Clouds:provider.go
+	vaultDnsSuffix, err := GetVaultDNSSuffix(p.AzureCloudEnvironment.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -340,13 +314,8 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 
 	azureCloudEnv, err := ParseAzureEnvironment(cloudName)
 	if err != nil {
-<<<<<<< HEAD
-		return fmt.Errorf("cloudName is not valid, error: %v", err)
-	}	
-=======
 		return fmt.Errorf("cloudName %s is not valid, error: %v", cloudName, err)
 	}
->>>>>>> 478c918... Fixing review comments
 
 	// defaults
 	usePodIdentity := false
