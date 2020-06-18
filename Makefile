@@ -60,7 +60,7 @@ unit-test:
 
 
 KIND_VERSION ?= 0.6.0
-KIND_K8S_VERSION ?= 1.16.3
+KIND_K8S_VERSION ?= 1.18.2
 
 .PHONY: e2e-bootstrap
 e2e-bootstrap: install-helm
@@ -110,7 +110,7 @@ install-helm:
 
 .PHONY: e2e-local-bootstrap
 e2e-local-bootstrap:
-	kind create cluster --image kindest/node:v${KIND_K8S_VERSION}
+	kind create cluster --config test/bats/kind-config.yaml --image kindest/node:v1.18.2@sha256:7b27a6d0f2517ff88ba444025beae41491b016bc6af573ba467b70c5e8e0d85f
 	make image
 	kind load --name kind docker-image $(DOCKER_IMAGE):$(IMAGE_VERSION)
 setup-debug-launchjson:

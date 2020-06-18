@@ -13,7 +13,7 @@ ARG HELM_VERSION=3.0.2
 #Kind Version
 ARG KIND_VERSION=0.8.1
 # Kubernetes Version for Kubectl
-ARG KUBERNETES_VERSION=1.16.3
+ARG KUBERNETES_VERSION=1.18.2
 
 # This Dockerfile adds a non-root user with sudo access. Use the "remoteUser"
 # property in devcontainer.json to use it. On Linux, the container user's GID/UIDs
