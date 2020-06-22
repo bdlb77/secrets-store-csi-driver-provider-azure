@@ -15,12 +15,13 @@ import (
 )
 
 var (
-	attributes  = pflag.String("attributes", "", "volume attributes")
-	secrets     = pflag.String("secrets", "", "node publish ref secret")
-	targetPath  = pflag.String("targetPath", "", "Target path to write data.")
-	permission  = pflag.String("permission", "", "File permission")
-	debug       = pflag.Bool("debug", false, "sets log to debug level")
-	versionInfo = pflag.Bool("version", false, "prints the version information")
+	attributes     = pflag.String("attributes", "", "volume attributes")
+	secrets        = pflag.String("secrets", "", "node publish ref secret")
+	targetPath     = pflag.String("targetPath", "", "Target path to write data.")
+	permission     = pflag.String("permission", "", "File permission")
+	objectVersions = pflag.String("objectVersions", "", "Key Vault Object Versions")
+	debug          = pflag.Bool("debug", false, "sets log to debug level")
+	versionInfo    = pflag.Bool("version", false, "prints the version information")
 )
 
 // LogHook is used to setup custom hooks
@@ -33,6 +34,7 @@ func main() {
 	pflag.Parse()
 
 	var attrib, secret map[string]string
+	var objectVersionList []map[string]string
 	var filePermission os.FileMode
 	var err error
 
@@ -58,13 +60,17 @@ func main() {
 		log.Fatalf("failed to unmarshal file permission, err: %v", err)
 	}
 
+	err = json.Unmarshal([]byte(*objectVersions), &objectVersionList)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal Key Vault Object Versions, err: %v", err)
+	}
 	provider, err := azure.NewProvider()
 	if err != nil {
 		log.Fatalf("[error] : %v", err)
 	}
 
 	ctx := context.Background()
-	err = provider.MountSecretsStoreObjectContent(ctx, attrib, secret, *targetPath, filePermission)
+	err = provider.MountSecretsStoreObjectContent(ctx, attrib, secret, objectVersionList, *targetPath, filePermission)
 	if err != nil {
 		log.Fatalf("[error] : %v", err)
 	}

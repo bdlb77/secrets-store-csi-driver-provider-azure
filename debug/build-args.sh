@@ -18,9 +18,10 @@ ATTRIBUTES=$(cat $LAUNCHPATH/debug/parameters.yaml \
   | yq r - -j \
 )
 
+OBJECT_VERSIONS="[{\"objectName\": \"databasePassword\",\"objectVersion\": \"\"},{\"objectName\":\"storagePassword\", \"objectVersion\":\"123425\"}]"
 export SECRETS=--secrets="$SECRETS"
 export ATTRIBUTES=--attributes="$ATTRIBUTES"
-
+export OBJECT_VERSIONS=--objectVersions="$OBJECT_VERSIONS"
 jq -n '{
   "version": "0.2.0",
   "configurations": [
@@ -36,6 +37,7 @@ jq -n '{
         env.ATTRIBUTES,
         "--targetPath=/tmp/secrets",
         "--permission=420",
+        env.CURRENT_OBJECTS,
         "--debug=true"
       ],
       "preLaunchTask": "create-tmp",
