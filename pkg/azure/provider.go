@@ -295,7 +295,7 @@ func (p *Provider) GetServicePrincipalToken(resource string) (*adal.ServicePrinc
 }
 
 // MountSecretsStoreObjectContent mounts content of the secrets store object to target path
-func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib map[string]string, secrets map[string]string, targetPath string, permission os.FileMode) (err error) {
+func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib map[string]string, secrets map[string]string, objectVersions []map[string]string, targetPath string, permission os.FileMode) (err error) {
 	keyvaultName := attrib["keyvaultName"]
 	cloudName := attrib["cloudName"]
 	usePodIdentityStr := attrib["usePodIdentity"]
@@ -390,8 +390,9 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 	p.UserAssignedIdentityID = userAssignedIdentityID
 	p.TenantID = tenantID
 
+	var newObjectVersions []map[string]string
 	for _, keyVaultObject := range keyVaultObjects {
-		content, err := p.GetKeyVaultObjectContent(ctx, keyVaultObject.ObjectType, keyVaultObject.ObjectName, keyVaultObject.ObjectVersion)
+		content, newObjectVersion, err := p.GetKeyVaultObjectContent(ctx, keyVaultObject.ObjectType, keyVaultObject.ObjectName, keyVaultObject.ObjectVersion)
 		if err != nil {
 			return err
 		}
@@ -400,56 +401,79 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 		if keyVaultObject.ObjectAlias != "" {
 			fileName = keyVaultObject.ObjectAlias
 		}
-		if err := ioutil.WriteFile(filepath.Join(targetPath, fileName), objectContent, permission); err != nil {
-			return errors.Wrapf(err, "secrets store csi driver failed to mount %s at %s", fileName, targetPath)
+
+		// TODO: Add Object Version Comparison & Write .metadata folder
+		if newObjectVersion != keyVaultObject.ObjectVersion {
+			if err := ioutil.WriteFile(filepath.Join(targetPath, fileName), objectContent, permission); err != nil {
+				return errors.Wrapf(err, "secrets store csi driver failed to mount %s at %s", fileName, targetPath)
+			}
+			objectMap := map[string]string{
+				"objectName":    keyVaultObject.ObjectName,
+				"objectVersion": newObjectVersion,
+			}
+			newObjectVersions = append(newObjectVersions, objectMap)
+			log.Infof("secrets store csi driver mounted %s", fileName)
+			log.Infof("Mount point: %s", targetPath)
+		} else {
+			log.Infof("No Change in Object Version for Object: %s. Skipping Writing File: %s", keyVaultObject.ObjectName, fileName)
 		}
-		log.Infof("secrets store csi driver mounted %s", fileName)
-		log.Infof("Mount point: %s", targetPath)
+	}
+
+	// Write currentObjects to .metadata to track running object versions.
+	if len(newObjectVersions) > 0 {
+		err = writeNewObjectVersions(newObjectVersions, targetPath, permission)
+		if err != nil {
+			errors.Wrapf(err, "Secrets Store CSI Driver failed to mount new Object Versions to .metadata folder")
+		}
 	}
 
 	return nil
 }
 
 // GetKeyVaultObjectContent get content of the keyvault object
-func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType string, objectName string, objectVersion string) (content string, err error) {
+func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType string, objectName string, objectVersion string) (content string, newObjectVersion string, err error) {
 	vaultURL, err := p.getVaultURL(ctx)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get vault")
+		return "", "", errors.Wrap(err, "failed to get vault")
 	}
 
 	kvClient, err := p.initializeKvClient()
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get keyvaultClient")
+		return "", "", errors.Wrap(err, "failed to get keyvaultClient")
 	}
 
 	switch objectType {
 	case VaultObjectTypeSecret:
 		secret, err := kvClient.GetSecret(ctx, *vaultURL, objectName, objectVersion)
 		if err != nil {
-			return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+			return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 		}
 		content := *secret.Value
+		// TODO: Parse Version from ID.
+		id := *secret.ID
+		splitID := strings.Split(id, "/")
+		newObjectVersion = splitID[len(splitID)-1]
 		// if the secret is part of a certificate, then we need to convert the certificate and key to PEM format
 		if secret.Kid != nil && len(*secret.Kid) > 0 {
 			switch *secret.ContentType {
 			case certTypePem:
-				return content, nil
+				return content, newObjectVersion, nil
 			case certTypePfx:
 				content, err := getCertAndPrivKeyInPEMFormat(*secret.Value)
 				if err != nil {
-					return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+					return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 				}
-				return content, nil
+				return content, newObjectVersion, nil
 			default:
 				err := errors.Errorf("failed to get certificate. unknown content type '%s'", *secret.ContentType)
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 		}
-		return content, nil
+		return content, newObjectVersion, nil
 	case VaultObjectTypeKey:
 		keybundle, err := kvClient.GetKey(ctx, *vaultURL, objectName, objectVersion)
 		if err != nil {
-			return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+			return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 		}
 		// for object type "key" the public key is written to the file in PEM format
 		switch keybundle.Key.Kty {
@@ -457,12 +481,12 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 			// decode the base64 bytes for n
 			nb, err := base64.RawURLEncoding.DecodeString(*keybundle.Key.N)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			// decode the base64 bytes for e
 			eb, err := base64.RawURLEncoding.DecodeString(*keybundle.Key.E)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			e := new(big.Int).SetBytes(eb).Int64()
 			pKey := &rsa.PublicKey{
@@ -471,7 +495,7 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 			}
 			derBytes, err := x509.MarshalPKIXPublicKey(pKey)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			pubKeyBlock := &pem.Block{
 				Type:  "PUBLIC KEY",
@@ -479,21 +503,21 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 			}
 			var pemData []byte
 			pemData = append(pemData, pem.EncodeToMemory(pubKeyBlock)...)
-			return string(pemData), nil
+			return string(pemData), "", nil
 		case kv.EC:
 			// decode the base64 bytes for x
 			xb, err := base64.RawURLEncoding.DecodeString(*keybundle.Key.X)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			// decode the base64 bytes for y
 			yb, err := base64.RawURLEncoding.DecodeString(*keybundle.Key.Y)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			crv, err := getCurve(keybundle.Key.Crv)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			pKey := &ecdsa.PublicKey{
 				X:     new(big.Int).SetBytes(xb),
@@ -502,7 +526,7 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 			}
 			derBytes, err := x509.MarshalPKIXPublicKey(pKey)
 			if err != nil {
-				return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+				return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 			}
 			pubKeyBlock := &pem.Block{
 				Type:  "PUBLIC KEY",
@@ -510,16 +534,16 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 			}
 			var pemData []byte
 			pemData = append(pemData, pem.EncodeToMemory(pubKeyBlock)...)
-			return string(pemData), nil
+			return string(pemData), "", nil
 		default:
 			err := errors.Errorf("failed to get key. key type '%s' currently not supported", keybundle.Key.Kty)
-			return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+			return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 		}
 	case VaultObjectTypeCertificate:
 		// for object type "cert" the certificate is written to the file in PEM format
 		certbundle, err := kvClient.GetCertificate(ctx, *vaultURL, objectName, objectVersion)
 		if err != nil {
-			return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+			return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 		}
 		certBlock := &pem.Block{
 			Type:  "CERTIFICATE",
@@ -527,10 +551,10 @@ func (p *Provider) GetKeyVaultObjectContent(ctx context.Context, objectType stri
 		}
 		var pemData []byte
 		pemData = append(pemData, pem.EncodeToMemory(certBlock)...)
-		return string(pemData), nil
+		return string(pemData), "", nil
 	default:
 		err := errors.Errorf("Invalid vaultObjectTypes. Should be secret, key, or cert")
-		return "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
+		return "", "", wrapObjectTypeError(err, objectType, objectName, objectVersion)
 	}
 }
 
@@ -605,4 +629,19 @@ func getCurve(crv kv.JSONWebKeyCurveName) (elliptic.Curve, error) {
 	default:
 		return nil, fmt.Errorf("curve %s is not suppported", crv)
 	}
+}
+
+func writeNewObjectVersions(objectVersions []map[string]string, targetPath string, permission os.FileMode) error {
+	// create Dir if doesn't exist
+	path := filepath.Join(targetPath, ".metadata")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		os.Mkdir(path, os.ModeDir)
+	}
+
+	for _, oMap := range objectVersions {
+		if err := ioutil.WriteFile(filepath.Join(path, oMap["objectName"]), []byte(oMap["objectVersion"]), permission); err != nil {
+			return fmt.Errorf("Failed to Write Object Version to File: %s at %s, Err: %v", oMap["objectName"], path, err)
+		}
+	}
+	return nil
 }

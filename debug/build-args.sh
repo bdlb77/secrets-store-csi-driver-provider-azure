@@ -37,7 +37,7 @@ jq -n '{
         env.ATTRIBUTES,
         "--targetPath=/tmp/secrets",
         "--permission=420",
-        env.CURRENT_OBJECTS,
+        env.OBJECT_VERSIONS,
         "--debug=true"
       ],
       "preLaunchTask": "create-tmp",
