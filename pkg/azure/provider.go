@@ -419,8 +419,12 @@ func (p *Provider) MountSecretsStoreObjectContent(ctx context.Context, attrib ma
 		}
 	}
 
-	// Write currentObjects to .metadata to track running object versions.
-	if len(newObjectVersions) > 0 {
+	/*
+		if objectVersions and NewObjectVers are defined
+		Write currentObjects to .metadata to track running object versions
+	*/
+	 if objectVersions != nil && len(newObjectVersions) > 0 {
+		log.Infof("Writing Object Versions for Secrets Store CSI Driver")
 		err = writeNewObjectVersions(newObjectVersions, targetPath, permission)
 		if err != nil {
 			errors.Wrapf(err, "Secrets Store CSI Driver failed to mount new Object Versions to .metadata folder")

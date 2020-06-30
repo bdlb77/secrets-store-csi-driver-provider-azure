@@ -59,10 +59,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to unmarshal file permission, err: %v", err)
 	}
-
-	err = json.Unmarshal([]byte(*objectVersions), &objectVersionList)
-	if err != nil {
-		log.Fatalf("Failed to unmarshal Key Vault Object Versions, err: %v", err)
+	objectVersionBytes := []byte(*objectVersions)
+	if len(objectVersionBytes) > 0 {
+		err = json.Unmarshal(objectVersionBytes, &objectVersionList)
+		if err != nil {
+			log.Fatalf("Failed to unmarshal Key Vault Object Versions, err: %v", err)
+		}
 	}
 	provider, err := azure.NewProvider()
 	if err != nil {

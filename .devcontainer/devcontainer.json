@@ -17,7 +17,7 @@
 	],
 	"extensions": [
 		"ms-vscode.azurecli",
-		"ms-vscode.go"
+		"golang.go"
   ],
   "remoteEnv": {
     "DEVCONTAINER": "true"
